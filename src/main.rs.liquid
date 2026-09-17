@@ -31,10 +31,6 @@ async fn main(_spawner: Spawner) {
         let pin_led = p.GPIO2;
         {%- when "esp32h2" -%}
         let pin_led = p.GPIO2;
-        {%- when "esp32p4" -%}
-        let pin_led = p.GPIO2;
-        {%- when "esp32s31" -%}
-        let pin_led = p.GPIO2;
         {%- when "esp32s2" -%}
         let pin_led = p.GPIO2;
         {%- when "esp32s3" -%}
@@ -94,10 +90,6 @@ async fn main(_spawner: Spawner) {
         {%- when "esp32c61" -%}
         let (pin_sw, pin_led) = (p.GPIO0, p.GPIO2);
         {%- when "esp32h2" -%}
-        let (pin_sw, pin_led) = (p.GPIO0, p.GPIO2);
-        {%- when "esp32p4" -%}
-        let (pin_sw, pin_led) = (p.GPIO0, p.GPIO2);
-        {%- when "esp32s31" -%}
         let (pin_sw, pin_led) = (p.GPIO0, p.GPIO2);
         {%- when "esp32s2" -%}
         let (pin_sw, pin_led) = (p.GPIO0, p.GPIO2);
@@ -173,10 +165,6 @@ async fn main(_spawner: Spawner) {
         let (pin_uart_tx, pin_uart_rx) = (p.GPIO11, p.GPIO10);
         {%- when "esp32h2" -%}
         let (pin_uart_tx, pin_uart_rx) = (p.GPIO24, p.GPIO23);
-        {%- when "esp32p4" -%}
-        let (pin_uart_tx, pin_uart_rx) = (p.GPIO6, p.GPIO5);
-        {%- when "esp32s31" -%}
-        let (pin_uart_tx, pin_uart_rx) = (p.GPIO3, p.GPIO2);
         {%- when "esp32s2" -%}
         let (pin_uart_tx, pin_uart_rx) = (p.GPIO43, p.GPIO44);
         {%- when "esp32s3" -%}
