@@ -1,6 +1,24 @@
 [template]
 cargo_generate_version = ">=0.18.0"
 
+[placeholders.target]
+prompt = "Choose a target"
+choices = [
+    "esp32",
+    "esp32c2",
+    "esp32c3",
+    "esp32c5",
+    "esp32c6",
+    "esp32c61",
+    "esp32h2",
+    "esp32p4",
+    "esp32s31",
+    "esp32s2",
+    "esp32s3",
+]
+default = "esp32"
+type = "string"
+
 [placeholders.template]
 prompt = "Choose a template"
 choices = [
@@ -9,7 +27,7 @@ choices = [
     "UART Echo",
     "Wi-Fi HTTP Client"
 ]
-default = "GPIO In/Out"
+default = "Blinky"
 type = "string"
 
 [conditional.'template != "Wi-Fi HTTP Client"']

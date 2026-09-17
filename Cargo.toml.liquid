@@ -1,6 +1,6 @@
 [package]
 edition      = "2024"
-name         = "my-esp-project"
+name         = "{{project-name}}"
 rust-version = "1.88"
 version      = "0.1.0"
 
@@ -10,11 +10,11 @@ critical-section = { version = "1.2.0" }
 panic-halt = { version = "1.0.0" }
 heapless = { version = "0.9.3" }
 
-esp-backtrace = { version = "0.19.0", features = ["panic-handler", "println", "esp32"] }
-esp-bootloader-esp-idf = { version = "0.5.0", features = ["esp32"] }
-esp-hal = { version = "~1.1.0", features = ["log-04", "unstable", "esp32"] }
-esp-println = { version = "0.17.0", features = ["log-04", "esp32"] }
-esp-rtos = { version = "0.3.0", features = ["embassy", "log-04", "esp32"] }
+esp-backtrace = { version = "0.19.0", features = ["panic-handler", "println", "{{target}}"] }
+esp-bootloader-esp-idf = { version = "0.5.0", features = ["{{target}}"] }
+esp-hal = { version = "~1.1.0", features = ["log-04", "unstable", "{{target}}"] }
+esp-println = { version = "0.17.0", features = ["log-04", "{{target}}"] }
+esp-rtos = { version = "0.3.0", features = ["embassy", "log-04", "{{target}}"] }
 
 embassy-executor = { version = "0.10.0" }
 embassy-futures = { version = "0.1.2" }
