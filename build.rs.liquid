@@ -64,7 +64,12 @@ fn linker_be_nice() {
     }
 
     println!(
+        {% case target -%}
+        {%- when "esp32" or "esp32s2" or "esp32s3" -%}
         "cargo:rustc-link-arg=-Wl,--error-handling-script={}",
+        {%- when "esp32c2" or "esp32c3" or "esp32c5" or "esp32c6" or "esp32c61" or "esp32h2" -%}
+        "cargo:rustc-link-arg=--error-handling-script={}",
+        {%- endcase %}
         std::env::current_exe().unwrap().display()
     );
 }
