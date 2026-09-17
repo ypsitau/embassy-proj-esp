@@ -1,0 +1,116 @@
+{%- case template -%}
+{%- when "GPIO In/Out" -%}
+#![no_std]
+#![no_main]
+
+use embassy_executor::Spawner;
+use embassy_time as time;
+use embedded_hal_1 as hal;
+use embedded_hal_async as hal_async;
+use esp_backtrace as _;
+use esp_hal as esp;
+use esp_println::println as info;
+
+esp_bootloader_esp_idf::esp_app_desc!();
+
+#[esp_rtos::main]
+async fn main(_spawner: Spawner) {
+    let (pin_sw, pin_led) = {
+        let p = esp_hal::init(esp_hal::Config::default());
+        esp_println::logger::init_logger_from_env();
+        let timg0 = esp::timer::timg::TimerGroup::new(p.TIMG0);
+        let software_interrupt_control = esp::interrupt::software::SoftwareInterruptControl::new(p.SW_INTERRUPT);
+        esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
+        let pin_sw = {
+            let config = esp::gpio::InputConfig::default().with_pull(esp::gpio::Pull::Up);
+            esp::gpio::Input::new(p.GPIO0, config)
+        };
+        let pin_led = {
+            esp::gpio::Output::new(p.GPIO2, esp::gpio::Level::Low, esp::gpio::OutputConfig::default())
+        };
+        (pin_sw, pin_led)
+    };
+    let fut_task_in_out = task_in_out(pin_sw, pin_led);
+    fut_task_in_out.await;
+}
+
+async fn task_in_out<InputPin, OutputPin>(mut pin_sw: InputPin, mut pin_led: OutputPin)
+where
+    InputPin: hal::digital::InputPin + hal_async::digital::Wait,
+    OutputPin: hal::digital::OutputPin,
+{
+    info!("Starting task_in_out");
+    loop {
+        let is_pushed = pin_sw.is_low().unwrap();
+        if is_pushed {
+            info!("Button pressed");
+            pin_led.set_high().ok();
+        } else {
+            info!("Button released");
+            pin_led.set_low().ok();
+        }
+        pin_sw.wait_for_any_edge().await.ok();
+        time::Timer::after_millis(30).await;    // debounce delay
+    }
+}
+{%- when "UART Echo" -%}
+#![no_std]
+#![no_main]
+
+use esp_backtrace as _;
+use esp_hal as esp;
+use embassy_executor::Spawner;
+use embedded_io_async as io_async;
+use static_cell::StaticCell;
+
+esp_bootloader_esp_idf::esp_app_desc!();
+
+#[esp_rtos::main]
+async fn main(_spawner: Spawner) {
+    let (uart,) = {
+        esp_println::logger::init_logger_from_env();
+        let p = esp_hal::init(esp_hal::Config::default());
+        let timg0 = esp::timer::timg::TimerGroup::new(p.TIMG0);
+        let software_interrupt_control = esp::interrupt::software::SoftwareInterruptControl::new(p.SW_INTERRUPT);
+        esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
+        //esp_rtos::start(timg0.timer0, p.FROM_CPU_INTR0);
+        let uart = {
+            const AT_CMD: u8 = 0x04;
+            const FIFO_FULL_THRESHOLD: u16 = 64;
+            let (pin_tx, pin_rx) = (p.GPIO1, p.GPIO3);
+            let config = esp::uart::Config::default()
+                .with_rx(esp::uart::RxConfig::default()
+                .with_fifo_full_threshold(FIFO_FULL_THRESHOLD));
+            let mut uart = esp::uart::Uart::new(p.UART0, config).unwrap().with_tx(pin_tx).with_rx(pin_rx).into_async();
+            uart.set_at_cmd(esp::uart::AtCmdConfig::default().with_cmd_char(AT_CMD));
+            uart
+        };
+        (uart,)
+    };
+    let (uart_rx, uart_tx) = uart.split();
+    task_echo(uart_rx, uart_tx).await;
+}
+
+async fn task_echo(mut reader: impl io_async::Read, mut writer: impl io_async::Write) {
+    const BUFSIZE: usize = 16;
+    let buf = {
+        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
+        STATIC_CELL.init([0u8; BUFSIZE])
+    };
+    writer.write_all(b"Enter any keystrokes:\r\n").await.ok();
+    writer.flush().await.ok();
+    loop {
+        match reader.read(buf).await {
+            Ok(len) => {
+                writer.write_all(&buf[..len]).await.ok();
+                writer.flush().await.ok();
+            }
+            Err(_) => {
+                writer.write_all(b"error in reading\r\n").await.ok();
+                writer.flush().await.ok();
+            }
+        }
+    }
+}
+{%- when "Wi-Fi HTTP Client" -%}
+{%- endcase %}

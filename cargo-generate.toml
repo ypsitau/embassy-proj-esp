@@ -1,0 +1,16 @@
+[template]
+cargo_generate_version = ">=0.18.0"
+
+[placeholders.template]
+prompt = "Choose a template"
+choices = [
+    "Blinky",
+    "GPIO In/Out",
+    "UART Echo",
+    "Wi-Fi HTTP Client"
+]
+default = "GPIO In/Out"
+type = "string"
+
+[conditional.'template != "Wi-Fi HTTP Client"']
+ignore = ["src/private_info.rs"]
