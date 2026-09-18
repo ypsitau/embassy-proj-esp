@@ -181,7 +181,7 @@ async fn main(_spawner: Spawner) {
                 .with_fifo_full_threshold(FIFO_FULL_THRESHOLD));
             esp::uart::Uart::new(p.UART0, config).unwrap().with_tx(pin_uart_tx).with_rx(pin_uart_rx).into_async()
         };
-        let (uart_rx, uart_tx) = uart.split(); // note that the order of tx and rx is wrongly implemented in the split function
+        let (uart_rx, uart_tx) = uart.split(); // note that the order is rx first, then tx.
         (uart_tx, uart_rx)
     };
     task_echo(uart_tx, uart_rx).await;
