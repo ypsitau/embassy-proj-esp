@@ -147,7 +147,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 #[esp_rtos::main]
 async fn main(_spawner: Spawner) {
-    let (uart,) = {
+    let (uart_tx, uart_rx) = {
         esp_println::logger::init_logger_from_env();
         let p = esp::init(Default::default());
         {% case target -%}
@@ -175,22 +175,20 @@ async fn main(_spawner: Spawner) {
         esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
         //esp_rtos::start(timg0.timer0, p.FROM_CPU_INTR0);
         let uart = {
-            const AT_CMD: u8 = 0x04;
             const FIFO_FULL_THRESHOLD: u16 = 64;
             let config = esp::uart::Config::default()
                 .with_rx(esp::uart::RxConfig::default()
                 .with_fifo_full_threshold(FIFO_FULL_THRESHOLD));
             let mut uart = esp::uart::Uart::new(p.UART0, config).unwrap().with_tx(pin_uart_tx).with_rx(pin_uart_rx).into_async();
-            uart.set_at_cmd(esp::uart::AtCmdConfig::default().with_cmd_char(AT_CMD));
             uart
         };
-        (uart,)
+        let (uart_rx, uart_tx) = uart.split(); // note that the order of tx and rx is wrongly implemented in the split function
+        (uart_tx, uart_rx)
     };
-    let (uart_rx, uart_tx) = uart.split();
-    task_echo(uart_rx, uart_tx).await;
+    task_echo(uart_tx, uart_rx).await;
 }
 
-async fn task_echo(mut reader: impl io_async::Read, mut writer: impl io_async::Write) {
+async fn task_echo(mut writer: impl io_async::Write, mut reader: impl io_async::Read) {
     const BUFSIZE: usize = 16;
     let buf = {
         static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
