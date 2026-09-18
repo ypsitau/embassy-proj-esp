@@ -179,8 +179,7 @@ async fn main(_spawner: Spawner) {
             let config = esp::uart::Config::default()
                 .with_rx(esp::uart::RxConfig::default()
                 .with_fifo_full_threshold(FIFO_FULL_THRESHOLD));
-            let mut uart = esp::uart::Uart::new(p.UART0, config).unwrap().with_tx(pin_uart_tx).with_rx(pin_uart_rx).into_async();
-            uart
+            esp::uart::Uart::new(p.UART0, config).unwrap().with_tx(pin_uart_tx).with_rx(pin_uart_rx).into_async()
         };
         let (uart_rx, uart_tx) = uart.split(); // note that the order of tx and rx is wrongly implemented in the split function
         (uart_tx, uart_rx)
