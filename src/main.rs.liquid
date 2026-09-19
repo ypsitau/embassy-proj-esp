@@ -1,5 +1,6 @@
 {%- case template -%}
 {%- when "Blinky" -%}
+//! Blinky example using Embassy and async/await.
 #![no_std]
 #![no_main]
 
@@ -60,6 +61,12 @@ async fn task_blinky(mut pin_led: impl hal::digital::OutputPin)
     }
 }
 {%- when "GPIO In/Out" -%}
+//! GPIO In/Out example using Embassy and async/await.
+//!
+//! ## Pin Assignment
+//! | ESP32           | Function |
+//! |-----------------|----------|
+//! | GPIO0           | Switch to GND  |
 #![no_std]
 #![no_main]
 
@@ -212,6 +219,14 @@ async fn task_echo(mut writer: impl io_async::Write, mut reader: impl io_async::
     }
 }
 {%- when "I2C SSD1306" -%}
+//! I2C SSD1306 example using Embassy and async/await.
+//!
+//! ## Pin Assignment
+//!
+//! | ESP32             | SSD1306 |
+//! |-------------------|---------|
+//! | GPIO21            | SDA     |
+//! | GPIO22            | SCL     |
 #![no_std]
 #![no_main]
 
