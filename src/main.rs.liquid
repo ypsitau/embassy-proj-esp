@@ -253,7 +253,26 @@ async fn main(_spawner: Spawner) {
         esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
         //esp_rtos::start(timg0.timer0, p.FROM_CPU_INTR0);
         let mutex_i2c0 = {
+            {% case target -%}
+            {%- when "esp32" -%}
             let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);
+            {%- when "esp32c2" -%}
+            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            {%- when "esp32c3" -%}
+            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            {%- when "esp32c5" -%}
+            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            {%- when "esp32c6" -%}
+            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            {%- when "esp32c61" -%}
+            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            {%- when "esp32h2" -%}
+            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            {%- when "esp32s2" -%}
+            let (pin_sda, pin_scl) = (p.GPIO8, p.GPIO9);    // not checked yet
+            {%- when "esp32s3" -%}
+            let (pin_sda, pin_scl) = (p.GPIO8, p.GPIO9);    // not checked yet
+            {%- endcase %}
             let config = esp::i2c::master::Config::default()
                 .with_frequency(esp::time::Rate::from_khz(400));
             let i2c0 = esp::i2c::master::I2c::new(p.I2C0, config).unwrap()
@@ -368,7 +387,26 @@ async fn main(_spawner: Spawner) {
         esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
         //esp_rtos::start(timg0.timer0, p.FROM_CPU_INTR0);
         let mutex_i2c0 = {
+            {% case target -%}
+            {%- when "esp32" -%}
             let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);
+            {%- when "esp32c2" -%}
+            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            {%- when "esp32c3" -%}
+            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            {%- when "esp32c5" -%}
+            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            {%- when "esp32c6" -%}
+            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            {%- when "esp32c61" -%}
+            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            {%- when "esp32h2" -%}
+            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            {%- when "esp32s2" -%}
+            let (pin_sda, pin_scl) = (p.GPIO8, p.GPIO9);    // not checked yet
+            {%- when "esp32s3" -%}
+            let (pin_sda, pin_scl) = (p.GPIO8, p.GPIO9);    // not checked yet
+            {%- endcase %}
             let config = esp::i2c::master::Config::default()
                 .with_frequency(esp::time::Rate::from_khz(400));
             let i2c0 = esp::i2c::master::I2c::new(p.I2C0, config).unwrap()
