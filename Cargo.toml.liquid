@@ -30,6 +30,10 @@ esp-rtos = { version = "0.3.0", features = ["embassy", "log-04", "{{target}}"] }
 {%- when "I2C SSD1306" -%}
 ssd1306 = { version = "0.10.0", features = ["async"] }
 embedded-graphics = { version = "0.8.2" }
+{%- when "I2C SSD1306 + DS3231" -%}
+ssd1306 = { version = "0.10.0", features = ["async"] }
+embedded-graphics = { version = "0.8.2" }
+time = { version = "0.3.55", default-features = false } # no_std
 {%- endcase %}
 
 [profile.dev]

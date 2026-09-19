@@ -24,6 +24,7 @@ choices = [
     "GPIO In/Out",
     "UART Echo",
     "I2C SSD1306",
+    "I2C SSD1306 + DS3231",
     "Wi-Fi HTTP Client"
 ]
 default = "Blinky"
