@@ -23,6 +23,7 @@ choices = [
     "Blinky",
     "GPIO In/Out",
     "UART Echo",
+    "I2C SSD1306",
     "Wi-Fi HTTP Client"
 ]
 default = "Blinky"

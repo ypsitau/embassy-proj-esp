@@ -211,5 +211,112 @@ async fn task_echo(mut writer: impl io_async::Write, mut reader: impl io_async::
         }
     }
 }
+{%- when "I2C SSD1306" -%}
+#![no_std]
+#![no_main]
+
+use core::fmt::Write;
+use embassy_executor::Spawner;
+use embassy_embedded_hal::shared_bus;
+use embassy_sync as sync;
+use embassy_time as time;
+
+use esp_backtrace as _;
+use esp_hal as esp;
+use esp_println::println as info;
+use static_cell::StaticCell;
+use heapless::String;
+
+esp_bootloader_esp_idf::esp_app_desc!();
+
+#[esp_rtos::main]
+async fn main(_spawner: Spawner) {
+    let (i2c_ssd1306,) = {
+        let p = esp::init(esp::Config::default());
+        let timg0 = esp::timer::timg::TimerGroup::new(p.TIMG0);
+        let software_interrupt_control = esp::interrupt::software::SoftwareInterruptControl::new(p.SW_INTERRUPT);
+        esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
+        //esp_rtos::start(timg0.timer0, p.FROM_CPU_INTR0);
+        let mutex_i2c0 = {
+            let pin_sda = p.GPIO21;
+            let pin_scl = p.GPIO22;
+            let config = esp::i2c::master::Config::default()
+                .with_frequency(esp::time::Rate::from_khz(400));
+            let i2c0 = esp::i2c::master::I2c::new(p.I2C0, config).unwrap()
+                .with_sda(pin_sda).with_scl(pin_scl).into_async();
+            static STATIC_CELL: StaticCell<sync::mutex::Mutex<
+                sync::blocking_mutex::raw::CriticalSectionRawMutex,
+                esp::i2c::master::I2c<'static, esp::Async>>> = StaticCell::new();
+            STATIC_CELL.init(sync::mutex::Mutex::new(i2c0))
+        };
+        let i2c_ssd1306 = shared_bus::asynch::i2c::I2cDevice::new(mutex_i2c0);
+        (i2c_ssd1306,)
+    };
+    let fut_task_display = task_display(i2c_ssd1306);
+    fut_task_display.await;
+}
+
+async fn task_display(i2c_ssd1306: impl embedded_hal_async::i2c::I2c) {
+    info!("Starting display task");
+    use ssd1306::prelude::*;
+    use embedded_graphics as eg;
+    use embedded_graphics::prelude::*;
+    enum Direction { Inc, Dec }
+    impl Direction {
+        fn step(&self, value: &mut i32) {
+            *value += match self { Self::Inc => 1, Self::Dec => -1 };
+        }
+    }
+    let mut display = {
+        let interface = ssd1306::I2CDisplayInterface::new(i2c_ssd1306);
+        let size = ssd1306::size::DisplaySize128x64;
+        let rotation = ssd1306::rotation::DisplayRotation::Rotate0;
+        ssd1306::Ssd1306Async::new(interface, size, rotation).into_buffered_graphics_mode()
+    };
+    display.init().await.unwrap();
+    let text_style = eg::mono_font::MonoTextStyleBuilder::new()
+        .font(&eg::mono_font::ascii::FONT_10X20)
+        .text_color(eg::pixelcolor::BinaryColor::On)
+        .build();
+    let mut sbuf: String<16> = String::new();
+    let style_dot = eg::primitives::PrimitiveStyleBuilder::new()
+        .fill_color(eg::pixelcolor::BinaryColor::On)
+        .build();
+    let size_display = {
+        let (width, height) = display.dimensions();
+        Size::new(width as u32, height as u32)
+    };
+    let size_dot = Size::new(8, 8);
+    let mut i_frame = 0;
+    let (mut x, mut y) = (size_display.width as i32 / 2, size_display.height as i32 / 2);
+    let (mut x_dir, mut y_dir) = (Direction::Inc, Direction::Inc);
+    let mut ticker = time::Ticker::every(time::Duration::from_millis(10));
+    loop {
+        display.clear(eg::pixelcolor::BinaryColor::Off).unwrap();
+        sbuf.clear();
+        write!(sbuf, "Frame: {}", i_frame).unwrap();
+        eg::text::Text::with_baseline(
+            sbuf.as_str(), Point::new(0, 0), text_style, eg::text::Baseline::Top
+        ).draw(&mut display).unwrap();
+        eg::primitives::Rectangle::new(
+            Point::new(x, y), size_dot
+        ).into_styled(style_dot).draw(&mut display).unwrap();
+        i_frame += 1;
+        if x >= (size_display.width - size_dot.width) as i32 {
+            x_dir = Direction::Dec;
+        } else if x <= 0 {
+            x_dir = Direction::Inc;
+        }
+        if y >= (size_display.height - size_dot.height) as i32 {
+            y_dir = Direction::Dec;
+        } else if y <= 0 {
+            y_dir = Direction::Inc;
+        }
+        x_dir.step(&mut x);
+        y_dir.step(&mut y);
+        display.flush().await.unwrap();
+        ticker.next().await;
+    }
+}
 {%- when "Wi-Fi HTTP Client" -%}
 {%- endcase %}
