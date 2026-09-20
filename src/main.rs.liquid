@@ -148,6 +148,7 @@ where
     }
 }
 {%- when "UART Echo" -%}
+//! UART Echo Example
 #![no_std]
 #![no_main]
 
@@ -228,13 +229,6 @@ async fn task_echo(mut writer: impl io_async::Write, mut reader: impl io_async::
 }
 {%- when "I2C SSD1306" -%}
 //! I2C SSD1306 example using Embassy and async/await.
-//!
-//! ## Pin Assignment
-//!
-//! | ESP32             | SSD1306 |
-//! |-------------------|---------|
-//! | GPIO21            | SDA     |
-//! | GPIO22            | SCL     |
 #![no_std]
 #![no_main]
 
@@ -365,40 +359,6 @@ async fn task_display(i2c_ssd1306: impl hal_async::i2c::I2c) {
 }
 {%- when "I2C SSD1306 + DS3231" -%}
 //! I2C SSD1306 and DS3231 example using Embassy and async/await.
-//!
-//! ## Pin Assignment
-//!
-//! | ESP32             | SSD1306 | DS3231  |
-//! |-------------------|---------|---------|
-{% case target -%}
-{%- when "esp32" -%}
-//! | GPIO21            | SDA     | SDA     |
-//! | GPIO22            | SCL     | SCL     |
-{%- when "esp32c2" -%}
-//! | GPIO21            | SDA     | SDA     |
-//! | GPIO22            | SCL     | SCL     |
-{%- when "esp32c3" -%}
-//! | GPIO21            | SDA     | SDA     |
-//! | GPIO22            | SCL     | SCL     |
-{%- when "esp32c5" -%}
-//! | GPIO21            | SDA     | SDA     |
-//! | GPIO22            | SCL     | SCL     |
-{%- when "esp32c6" -%}
-//! | GPIO21            | SDA     | SDA     |
-//! | GPIO22            | SCL     | SCL     |
-{%- when "esp32c61" -%}
-//! | GPIO21            | SDA     | SDA     |
-//! | GPIO22            | SCL     | SCL     |
-{%- when "esp32h2" -%}
-//! | GPIO21            | SDA     | SDA     |
-//! | GPIO22            | SCL     | SCL     |
-{%- when "esp32s2" -%}
-//! | GPIO8             | SDA     | SDA     |
-//! | GPIO9             | SCL     | SCL     |
-{%- when "esp32s3" -%}
-//! | GPIO8             | SDA     | SDA     |
-//! | GPIO9             | SCL     | SCL     |
-{%- endcase %}
 #![no_std]
 #![no_main]
 
