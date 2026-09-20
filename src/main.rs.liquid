@@ -370,8 +370,35 @@ async fn task_display(i2c_ssd1306: impl hal_async::i2c::I2c) {
 //!
 //! | ESP32             | SSD1306 | DS3231  |
 //! |-------------------|---------|---------|
+{% case target -%}
+{%- when "esp32" -%}
 //! | GPIO21            | SDA     | SDA     |
 //! | GPIO22            | SCL     | SCL     |
+{%- when "esp32c2" -%}
+//! | GPIO21            | SDA     | SDA     |
+//! | GPIO22            | SCL     | SCL     |
+{%- when "esp32c3" -%}
+//! | GPIO21            | SDA     | SDA     |
+//! | GPIO22            | SCL     | SCL     |
+{%- when "esp32c5" -%}
+//! | GPIO21            | SDA     | SDA     |
+//! | GPIO22            | SCL     | SCL     |
+{%- when "esp32c6" -%}
+//! | GPIO21            | SDA     | SDA     |
+//! | GPIO22            | SCL     | SCL     |
+{%- when "esp32c61" -%}
+//! | GPIO21            | SDA     | SDA     |
+//! | GPIO22            | SCL     | SCL     |
+{%- when "esp32h2" -%}
+//! | GPIO21            | SDA     | SDA     |
+//! | GPIO22            | SCL     | SCL     |
+{%- when "esp32s2" -%}
+//! | GPIO8             | SDA     | SDA     |
+//! | GPIO9             | SCL     | SCL     |
+{%- when "esp32s3" -%}
+//! | GPIO8             | SDA     | SDA     |
+//! | GPIO9             | SCL     | SCL     |
+{%- endcase %}
 #![no_std]
 #![no_main]
 
