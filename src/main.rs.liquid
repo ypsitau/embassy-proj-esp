@@ -250,6 +250,9 @@ use esp_println::println as info;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
+pub type MutexCriticalSection<T> =
+    emb::sync::blocking_mutex::Mutex<emb::sync::blocking_mutex::raw::CriticalSectionRawMutex, T>;
+
 #[esp_rtos::main]
 async fn main(_spawner: emb::executor::Spawner) {
     let (i2c_ssd1306,) = {
@@ -283,10 +286,9 @@ async fn main(_spawner: emb::executor::Spawner) {
                 .with_frequency(esp::time::Rate::from_khz(400));
             let i2c0 = esp::i2c::master::I2c::new(p.I2C0, config).unwrap()
                 .with_sda(pin_sda).with_scl(pin_scl).into_async();
-            static STATIC_CELL: StaticCell<emb::sync::mutex::Mutex<
-                emb::sync::blocking_mutex::raw::CriticalSectionRawMutex,
+            static STATIC_CELL: StaticCell<MutexCriticalSection<
                 esp::i2c::master::I2c<'static, esp::Async>>> = StaticCell::new();
-            STATIC_CELL.init(emb::sync::mutex::Mutex::new(i2c0))
+            STATIC_CELL.init(MutexCriticalSection::new(i2c0))
         };
         let i2c_ssd1306 = emb::shared_bus::asynch::i2c::I2cDevice::new(mutex_i2c0);
         (i2c_ssd1306,)
@@ -378,6 +380,9 @@ use esp_backtrace as _;
 use esp_hal as esp;
 use esp_println::println as info;
 
+pub type MutexCriticalSection<T> =
+    emb::sync::blocking_mutex::Mutex<emb::sync::blocking_mutex::raw::CriticalSectionRawMutex, T>;
+
 esp_bootloader_esp_idf::esp_app_desc!();
 
 #[esp_rtos::main]
@@ -413,10 +418,9 @@ async fn main(_spawner: emb::executor::Spawner) {
                 .with_frequency(esp::time::Rate::from_khz(400));
             let i2c0 = esp::i2c::master::I2c::new(p.I2C0, config).unwrap()
                 .with_sda(pin_sda).with_scl(pin_scl).into_async();
-            static STATIC_CELL: StaticCell<emb::sync::mutex::Mutex<
-                emb::sync::blocking_mutex::raw::CriticalSectionRawMutex,
+            static STATIC_CELL: StaticCell<MutexCriticalSection<
                 esp::i2c::master::I2c<'static, esp::Async>>> = StaticCell::new();
-            STATIC_CELL.init(emb::sync::mutex::Mutex::new(i2c0))
+            STATIC_CELL.init(MutexCriticalSection::new(i2c0))
         };
         let i2c_ssd1306 = emb::shared_bus::asynch::i2c::I2cDevice::new(mutex_i2c0);
         let i2c_ds3231 = emb::shared_bus::asynch::i2c::I2cDevice::new(mutex_i2c0);
