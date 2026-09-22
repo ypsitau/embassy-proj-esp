@@ -27,14 +27,20 @@ esp-println = { version = "0.17.0", features = ["log-04", "{{target}}"] }
 esp-rtos = { version = "0.3.0", features = ["embassy", "log-04", "{{target}}"] }
 
 {% case template -%}
-{%- when "I2C SSD1306" -%}
+{% when "Blinky" -%}
+{% when "GPIO In/Out" -%}
+{% when "UART Echo" -%}
+{% when "I2C SSD1306" -%}
 ssd1306 = { version = "0.10.0", features = ["async"] }
 embedded-graphics = { version = "0.8.2" }
-{%- when "I2C SSD1306 + DS3231" -%}
+
+{% when "I2C SSD1306 + DS3231" -%}
 ssd1306 = { version = "0.10.0", features = ["async"] }
 embedded-graphics = { version = "0.8.2" }
 time = { version = "0.3.55", default-features = false } # no_std
-{%- endcase %}
+
+{% when "Wi-Fi HTTP Client" -%}
+{% endcase -%}
 
 [profile.dev]
 opt-level = "s"
