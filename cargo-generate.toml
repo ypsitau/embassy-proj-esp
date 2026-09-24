@@ -22,7 +22,8 @@ prompt = "Choose a template"
 choices = [
     "Blinky",
     "GPIO In/Out",
-    "PWM LEDC",
+    "LEDC (PWM)",
+    "MCPWM (Motor Control PWM)",
     "UART Echo",
     "I2C SSD1306",
     "I2C SSD1306 + DS3231",
