@@ -147,6 +147,72 @@ where
         emb::time::Timer::after_millis(30).await;    // debounce delay
     }
 }
+{%- when "PWM LEDC" -%}
+//! PWM LEDC example using Embassy.
+#![no_std]
+#![no_main]
+
+mod emb {
+    pub use embassy_executor as executor;
+    pub use embassy_time as time;
+}
+use embedded_hal_1 as hal;
+
+use static_cell::StaticCell;
+
+use esp_backtrace as _;
+use esp_hal as esp;
+use esp_println::println as info;
+
+esp_bootloader_esp_idf::esp_app_desc!();
+
+#[esp_rtos::main]
+async fn main(_spawner: emb::executor::Spawner) {
+    let (pwm_led,) = {
+        let p = esp::init(Default::default());
+        let timg0 = esp::timer::timg::TimerGroup::new(p.TIMG0);
+        let software_interrupt_control = esp::interrupt::software::SoftwareInterruptControl::new(p.SW_INTERRUPT);
+        esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
+        //esp_rtos::start(timg0.timer0, p.FROM_CPU_INTR0);
+        let ledc = esp::ledc::Ledc::new(p.LEDC);
+        let ledc_timer0 = {
+            use esp::ledc::timer::TimerIFace as _;
+            static STATIC_CELL: StaticCell<esp::ledc::timer::Timer<'static, esp::ledc::HighSpeed>> = StaticCell::new();
+            let timer = STATIC_CELL.init(ledc.timer::<esp::ledc::HighSpeed>(esp::ledc::timer::Number::Timer0));
+            timer.configure(esp::ledc::timer::config::Config {
+                duty:           esp::ledc::timer::config::Duty::Duty8Bit,
+                clock_source:   esp::ledc::timer::HSClockSource::APBClk,
+                frequency:      esp::time::Rate::from_hz(1000)}).unwrap();
+            timer
+        };
+        let pwm_led = {
+            use esp::ledc::channel::ChannelIFace as _;
+            let mut pwm_led = ledc.channel(esp::ledc::channel::Number::Channel0, p.GPIO2);
+            pwm_led.configure(esp::ledc::channel::config::Config {
+                timer: ledc_timer0, duty_pct: 0, drive_mode: esp::gpio::DriveMode::PushPull}).unwrap();
+            pwm_led
+        };
+        (pwm_led,)
+    };
+    let fut_task_dim_led = task_dim_led(pwm_led);
+    fut_task_dim_led.await;
+}
+
+async fn task_dim_led(mut pwm_led: impl hal::pwm::SetDutyCycle)
+{
+    info!("Starting task_dim_led");
+    let mut ticker = emb::time::Ticker::every(emb::time::Duration::from_millis(500));
+    loop {
+        pwm_led.set_duty_cycle_fraction(100, 100).ok();
+        ticker.next().await;
+        pwm_led.set_duty_cycle_fraction(66, 100).ok();
+        ticker.next().await;
+        pwm_led.set_duty_cycle_fraction(33, 100).ok();
+        ticker.next().await;
+        pwm_led.set_duty_cycle_fraction(0, 100).ok();
+        ticker.next().await;
+    }
+}
 {%- when "UART Echo" -%}
 //! UART Echo Example
 #![no_std]
