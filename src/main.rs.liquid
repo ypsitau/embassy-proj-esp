@@ -625,6 +625,7 @@ mod emb {
 }
 
 use static_cell::StaticCell;
+use rand_core::TryRng;
 
 use esp_alloc as _;
 use esp_backtrace as _;
@@ -638,7 +639,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 #[esp_rtos::main]
 async fn main(_spawner: emb::executor::Spawner) {
-    let (net_driver, _esp32_wifi_controller, mut pin_led) = {
+    let (net_driver, _esp32_wifi_controller, mut pin_led, mut rng) = {
         let p = esp::init(Default::default());
         esp_alloc::heap_allocator!(size: 64 * 1024);
         esp_println::logger::init_logger_from_env();
@@ -660,7 +661,8 @@ async fn main(_spawner: emb::executor::Spawner) {
         };
         let pin_led = p.GPIO2;
         let pin_led = esp::gpio::Output::new(pin_led, esp::gpio::Level::Low, esp::gpio::OutputConfig::default());
-        (esp32_wifi_interfaces.station, esp32_wifi_controller, pin_led)
+        let rng = esp::rng::Rng::new();
+        (esp32_wifi_interfaces.station, esp32_wifi_controller, pin_led, rng)
     };
     let (net_stack, mut net_runner) = {
         const USE_DHCP: bool = true;
@@ -677,7 +679,8 @@ async fn main(_spawner: emb::executor::Spawner) {
             static STATIC_CELL: StaticCell<emb::net::StackResources<3>> = StaticCell::new();
             STATIC_CELL.init(emb::net::StackResources::<3>::new())
         };
-        let random_seed: u64 = 0x1234_5678_9abc_def0;
+        let random_seed: u64 = rng.try_next_u64().unwrap();
+        info!("Random seed: {:016x}", random_seed);
         emb::net::new(net_driver, config, resources, random_seed)
     };
     let fut_net_runner = net_runner.run();
@@ -687,7 +690,7 @@ async fn main(_spawner: emb::executor::Spawner) {
         info!("waiting for DHCP...");
         net_stack.wait_config_up().await;
         info!("Stack is up!");
-        run_http_client(net_stack).await;
+        run_http_client(net_stack, rng).await;
     };
     let fut_blinky = async {
         let mut ticker = emb::time::Ticker::every(emb::time::Duration::from_millis(300));
@@ -701,7 +704,7 @@ async fn main(_spawner: emb::executor::Spawner) {
     emb::futures::join::join3(fut_main, fut_net_runner, fut_blinky).await;
 }
 
-async fn run_http_client(net_stack: emb::net::Stack<'_>) -> ! {
+async fn run_http_client(net_stack: emb::net::Stack<'_>, mut rng: impl TryRng) -> ! {
     const USE_TLS: bool = false;
     let client_state = {
         const N: usize = 1;
@@ -719,36 +722,33 @@ async fn run_http_client(net_stack: emb::net::Stack<'_>) -> ! {
     loop {
         let tcp_client = emb::net::tcp::client::TcpClient::new(net_stack, client_state);
         let dns_socket = emb::net::dns::DnsSocket::new(net_stack);
-        //let (mut http_client, url) = if USE_TLS {
-        //    let tls_read_buffer = {
-        //        static STATIC_CELL: StaticCell<[u8; 16640]> = StaticCell::new();
-        //        STATIC_CELL.init([0u8; 16640])
-        //    };
-        //    let tls_write_buffer = {
-        //        static STATIC_CELL: StaticCell<[u8; 16640]> = StaticCell::new();
-        //        STATIC_CELL.init([0u8; 16640])
-        //    };
-        //    let tls_config = {
-        //        let mut rng = rp::clocks::RoscRng;
-        //        let seed = rng.next_u64();
-        //        reqwless::client::TlsConfig::new(
-        //            seed,
-        //            tls_read_buffer,
-        //            tls_write_buffer,
-        //            reqwless::client::TlsVerify::None,
-        //        )
-        //    };
-        //    let http_client =
-        //        reqwless::client::HttpClient::new_with_tls(&tcp_client, &dns_socket, tls_config);
-        //    let url = "https://httpbin.org/json";
-        //    (http_client, url)
-        //} else {
-        //    let http_client = reqwless::client::HttpClient::new(&tcp_client, &dns_socket);
-        //    let url = "http://httpbin.org/json";
-        //    (http_client, url)
-        //};
-        let mut http_client = reqwless::client::HttpClient::new(&tcp_client, &dns_socket);
-        let url = "http://httpbin.org/json";
+        let (mut http_client, url) = if USE_TLS {
+            let tls_read_buffer = {
+                static STATIC_CELL: StaticCell<[u8; 16640]> = StaticCell::new();
+                STATIC_CELL.init([0u8; 16640])
+            };
+            let tls_write_buffer = {
+                static STATIC_CELL: StaticCell<[u8; 16640]> = StaticCell::new();
+                STATIC_CELL.init([0u8; 16640])
+            };
+            let tls_config = {
+                let random_seed: u64 = rng.try_next_u64().unwrap();
+                reqwless::client::TlsConfig::new(
+                    random_seed,
+                    tls_read_buffer,
+                    tls_write_buffer,
+                    reqwless::client::TlsVerify::None,
+                )
+            };
+            let http_client =
+                reqwless::client::HttpClient::new_with_tls(&tcp_client, &dns_socket, tls_config);
+            let url = "https://httpbin.org/json";
+            (http_client, url)
+        } else {
+            let http_client = reqwless::client::HttpClient::new(&tcp_client, &dns_socket);
+            let url = "http://httpbin.org/json";
+            (http_client, url)
+        };
         info!("connecting to {}", &url);
         let mut request = match http_client
             .request(reqwless::request::Method::GET, url)
@@ -795,7 +795,7 @@ async fn run_http_client(net_stack: emb::net::Stack<'_>) -> ! {
                 info!("Slideshow title: {:?}", output.slideshow.title);
                 info!("Slideshow author: {:?}", output.slideshow.author);
             }
-            Err(e) => {
+            Err(_e) => {
                 //error!("Failed to parse JSON response: {}", Debug2Format(&e));
             }
         }
