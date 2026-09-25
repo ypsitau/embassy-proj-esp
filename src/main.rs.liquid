@@ -639,7 +639,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 #[esp_rtos::main]
 async fn main(_spawner: emb::executor::Spawner) {
-    let (net_driver, _esp32_wifi_controller, mut pin_led, mut rng) = {
+    let (net_driver, mut esp32_wifi_controller, mut pin_led, mut rng) = {
         let p = esp::init(Default::default());
         esp_alloc::heap_allocator!(size: 64 * 1024);
         esp_println::logger::init_logger_from_env();
@@ -654,9 +654,6 @@ async fn main(_spawner: emb::executor::Spawner) {
             let station_config = esp_radio::wifi::sta::StationConfig::default()
                 .with_ssid(private_info::WIFI_SSID).with_password(private_info::WIFI_PASSWORD.into());
             esp32_wifi_controller.set_config(&esp_radio::wifi::Config::Station(station_config)).unwrap();
-            while let Err(_) = esp32_wifi_controller.connect_async().await {
-                info!("Failed to connect to WiFi, retrying...");
-            }
             (esp32_wifi_controller, esp32_wifi_interfaces)
         };
         let pin_led = p.GPIO2;
@@ -685,6 +682,9 @@ async fn main(_spawner: emb::executor::Spawner) {
     };
     let fut_net_runner = net_runner.run();
     let fut_main = async {
+        while let Err(_) = esp32_wifi_controller.connect_async().await {
+            info!("Failed to connect to WiFi, retrying...");
+        }
         info!("waiting for link...");
         net_stack.wait_link_up().await;
         info!("waiting for DHCP...");
