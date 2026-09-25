@@ -614,4 +614,192 @@ impl<I2C: hal_async::i2c::I2c> Ds3231<I2C> {
     }
 }
 {%- when "Wi-Fi HTTP Client" -%}
+#![no_std]
+#![no_main]
+
+mod emb {
+    pub use embassy_executor as executor;
+    pub use embassy_futures as futures;
+    pub use embassy_net as net;
+    pub use embassy_time as time;
+}
+
+use static_cell::StaticCell;
+
+use esp_alloc as _;
+use esp_backtrace as _;
+use esp_hal as esp;
+use esp_println::println as info;
+use esp_println::println as error;
+
+mod private_info;
+
+esp_bootloader_esp_idf::esp_app_desc!();
+
+#[esp_rtos::main]
+async fn main(spawner: emb::executor::Spawner) {
+    let (net_driver, _esp32_wifi_controller, mut pin_led) = {
+        let p = esp::init(Default::default());
+        esp_alloc::heap_allocator!(size: 64 * 1024);
+        esp_println::logger::init_logger_from_env();
+        let timg0 = esp::timer::timg::TimerGroup::new(p.TIMG0);
+        let software_interrupt_control =
+            esp::interrupt::software::SoftwareInterruptControl::new(p.SW_INTERRUPT);
+        esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
+        //esp_rtos::start(timg0.timer0, p.FROM_CPU_INTR0);
+        let (esp32_wifi_controller, esp32_wifi_interfaces) = {
+            let (mut esp32_wifi_controller, esp32_wifi_interfaces) =
+                esp_radio::wifi::new(p.WIFI, Default::default()).unwrap();
+            let station_config = esp_radio::wifi::sta::StationConfig::default()
+                .with_ssid(private_info::WIFI_SSID).with_password(private_info::WIFI_PASSWORD.into());
+            esp32_wifi_controller.set_config(&esp_radio::wifi::Config::Station(station_config)).unwrap();
+            while let Err(_) = esp32_wifi_controller.connect_async().await {
+                info!("Failed to connect to WiFi, retrying...");
+            }
+            (esp32_wifi_controller, esp32_wifi_interfaces)
+        };
+        let pin_led = p.GPIO2;
+        let pin_led = esp::gpio::Output::new(pin_led, esp::gpio::Level::Low, esp::gpio::OutputConfig::default());
+        (esp32_wifi_interfaces.station, esp32_wifi_controller, pin_led)
+    };
+    let (net_stack, mut net_runner) = {
+        const USE_DHCP: bool = true;
+        let config = if USE_DHCP {
+            emb::net::Config::dhcpv4(Default::default())
+        } else {
+            let address = emb::net::Ipv4Cidr::new(emb::net::Ipv4Address::new(192, 168, 0, 100), 24);
+            let mut dns_servers = heapless::Vec::<emb::net::Ipv4Address, 3>::new();
+            dns_servers.push(emb::net::Ipv4Address::new(192, 168, 0, 1)).unwrap();
+            let gateway = Some(emb::net::Ipv4Address::new(192, 168, 0, 1));
+            emb::net::Config::ipv4_static(emb::net::StaticConfigV4 {address, dns_servers, gateway})
+        };
+        let resources = {
+            static STATIC_CELL: StaticCell<emb::net::StackResources<3>> = StaticCell::new();
+            STATIC_CELL.init(emb::net::StackResources::<3>::new())
+        };
+        let random_seed: u64 = 0x1234_5678_9abc_def0;
+        emb::net::new(net_driver, config, resources, random_seed)
+    };
+    let fut_net_runner = net_runner.run();
+    let fut_main = async {
+        info!("waiting for link...");
+        net_stack.wait_link_up().await;
+        info!("waiting for DHCP...");
+        net_stack.wait_config_up().await;
+        info!("Stack is up!");
+        run_http_client(net_stack).await;
+    };
+    let fut_blinky = async {
+        let mut ticker = emb::time::Ticker::every(emb::time::Duration::from_millis(300));
+        loop {
+            pin_led.set_high();
+            ticker.next().await;
+            pin_led.set_low();
+            ticker.next().await;
+        }
+    };
+    emb::futures::join::join3(fut_main, fut_net_runner, fut_blinky).await;
+}
+
+async fn run_http_client(net_stack: emb::net::Stack<'_>) -> ! {
+    const USE_TLS: bool = false;
+    let client_state = {
+        const N: usize = 1;
+        const TX_SZ: usize = 4096;
+        const RX_SZ: usize = 4096;
+        static STATIC_CELL: StaticCell<emb::net::tcp::client::TcpClientState<N, TX_SZ, RX_SZ>> =
+            StaticCell::new();
+        STATIC_CELL.init(emb::net::tcp::client::TcpClientState::<N, TX_SZ, RX_SZ>::new())
+    };
+    let buf_response = {
+        const SIZE: usize = 4096;
+        static STATIC_CELL: StaticCell<[u8; SIZE]> = StaticCell::new();
+        STATIC_CELL.init([0; SIZE])
+    };
+    loop {
+        let tcp_client = emb::net::tcp::client::TcpClient::new(net_stack, client_state);
+        let dns_socket = emb::net::dns::DnsSocket::new(net_stack);
+        //let (mut http_client, url) = if USE_TLS {
+        //    let tls_read_buffer = {
+        //        static STATIC_CELL: StaticCell<[u8; 16640]> = StaticCell::new();
+        //        STATIC_CELL.init([0u8; 16640])
+        //    };
+        //    let tls_write_buffer = {
+        //        static STATIC_CELL: StaticCell<[u8; 16640]> = StaticCell::new();
+        //        STATIC_CELL.init([0u8; 16640])
+        //    };
+        //    let tls_config = {
+        //        let mut rng = rp::clocks::RoscRng;
+        //        let seed = rng.next_u64();
+        //        reqwless::client::TlsConfig::new(
+        //            seed,
+        //            tls_read_buffer,
+        //            tls_write_buffer,
+        //            reqwless::client::TlsVerify::None,
+        //        )
+        //    };
+        //    let http_client =
+        //        reqwless::client::HttpClient::new_with_tls(&tcp_client, &dns_socket, tls_config);
+        //    let url = "https://httpbin.org/json";
+        //    (http_client, url)
+        //} else {
+        //    let http_client = reqwless::client::HttpClient::new(&tcp_client, &dns_socket);
+        //    let url = "http://httpbin.org/json";
+        //    (http_client, url)
+        //};
+        let mut http_client = reqwless::client::HttpClient::new(&tcp_client, &dns_socket);
+        let url = "http://httpbin.org/json";
+        info!("connecting to {}", &url);
+        let mut request = match http_client
+            .request(reqwless::request::Method::GET, url)
+            .await
+        {
+            Ok(request) => request,
+            Err(e) => {
+                error!("Failed to make HTTP request: {:?}", e);
+                emb::time::Timer::after_secs(5).await;
+                continue;
+            }
+        };
+        let response = match request.send(buf_response).await {
+            Ok(response) => response,
+            Err(e) => {
+                error!("Failed to send HTTP request: {:?}", e);
+                emb::time::Timer::after_secs(5).await;
+                continue;
+            }
+        };
+        info!("Response status: {}", response.status.0);
+        let body_bytes = match response.body().read_to_end().await {
+            Ok(body_bytes) => body_bytes,
+            Err(_e) => {
+                error!("Failed to read response body");
+                emb::time::Timer::after_secs(5).await;
+                continue;
+            }
+        };
+        info!("Response body length: {} bytes", body_bytes.len());
+        #[derive(serde::Deserialize)]
+        struct SlideShow<'a> {
+            author: &'a str,
+            title: &'a str,
+        }
+        #[derive(serde::Deserialize)]
+        struct HttpBinResponse<'a> {
+            #[serde(borrow)]
+            slideshow: SlideShow<'a>,
+        }
+        match serde_json_core::from_slice::<HttpBinResponse>(body_bytes) {
+            Ok((output, _used)) => {
+                info!("Successfully parsed JSON response!");
+                info!("Slideshow title: {:?}", output.slideshow.title);
+                info!("Slideshow author: {:?}", output.slideshow.author);
+            }
+            Err(e) => {
+                //error!("Failed to parse JSON response: {}", Debug2Format(&e));
+            }
+        }
+        emb::time::Timer::after_secs(5).await;
+    }
+}
 {%- endcase %}
