@@ -637,7 +637,7 @@ mod private_info;
 esp_bootloader_esp_idf::esp_app_desc!();
 
 #[esp_rtos::main]
-async fn main(spawner: emb::executor::Spawner) {
+async fn main(_spawner: emb::executor::Spawner) {
     let (net_driver, _esp32_wifi_controller, mut pin_led) = {
         let p = esp::init(Default::default());
         esp_alloc::heap_allocator!(size: 64 * 1024);
