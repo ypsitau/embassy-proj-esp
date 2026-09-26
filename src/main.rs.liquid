@@ -723,22 +723,20 @@ async fn run_http_client(net_stack: emb::net::Stack<'_>, mut rng: impl TryRng) -
         let tcp_client = emb::net::tcp::client::TcpClient::new(net_stack, client_state);
         let dns_socket = emb::net::dns::DnsSocket::new(net_stack);
         let (mut http_client, url) = if USE_TLS {
-            let tls_read_buffer = {
-                static STATIC_CELL: StaticCell<[u8; 16640]> = StaticCell::new();
-                STATIC_CELL.init([0u8; 16640])
-            };
-            let tls_write_buffer = {
-                static STATIC_CELL: StaticCell<[u8; 16640]> = StaticCell::new();
-                STATIC_CELL.init([0u8; 16640])
-            };
             let tls_config = {
                 let random_seed: u64 = rng.try_next_u64().unwrap();
+                let read_buf = {
+                    const BUF_SIZE: usize = 16640; 
+                    static STATIC_CELL: StaticCell<[u8; BUF_SIZE]> = StaticCell::new();
+                    STATIC_CELL.init([0u8; BUF_SIZE])
+                };
+                let write_buf = {
+                    const BUF_SIZE: usize = 16640; 
+                    static STATIC_CELL: StaticCell<[u8; BUF_SIZE]> = StaticCell::new();
+                    STATIC_CELL.init([0u8; BUF_SIZE])
+                };
                 reqwless::client::TlsConfig::new(
-                    random_seed,
-                    tls_read_buffer,
-                    tls_write_buffer,
-                    reqwless::client::TlsVerify::None,
-                )
+                    random_seed, read_buf, write_buf, reqwless::client::TlsVerify::None)
             };
             let http_client =
                 reqwless::client::HttpClient::new_with_tls(&tcp_client, &dns_socket, tls_config);
@@ -750,10 +748,7 @@ async fn run_http_client(net_stack: emb::net::Stack<'_>, mut rng: impl TryRng) -
             (http_client, url)
         };
         info!("connecting to {}", &url);
-        let mut request = match http_client
-            .request(reqwless::request::Method::GET, url)
-            .await
-        {
+        let mut request = match http_client.request(reqwless::request::Method::GET, url).await {
             Ok(request) => request,
             Err(e) => {
                 error!("Failed to make HTTP request: {:?}", e);
