@@ -32,6 +32,7 @@ esp-bootloader-esp-idf = { version = "0.5.0", features = ["{{target}}"] }
 esp-hal = { version = "~1.1.0", features = ["log-04", "unstable", "{{target}}"] }
 esp-println = { version = "0.17.0", features = ["log-04", "{{target}}"] }
 esp-rtos = { version = "0.3.0", features = [
+    {%- if template == "Wi-Fi Scan" %}"esp-radio", {% endif -%}
     {%- if template == "Wi-Fi HTTP Client" %}"esp-radio", {% endif -%}
     "embassy", "log-04", "{{target}}"] }
 
