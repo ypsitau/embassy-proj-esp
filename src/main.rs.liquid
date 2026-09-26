@@ -613,6 +613,43 @@ impl<I2C: hal_async::i2c::I2c> Ds3231<I2C> {
         Ok(dt)
     }
 }
+{%- when "Wi-Fi Scan" -%}
+#![no_std]
+#![no_main]
+
+mod emb {
+    pub use embassy_executor as executor;
+}
+
+use esp_alloc as _;
+use esp_backtrace as _;
+use esp_hal as esp;
+use esp_println::println as info;
+
+esp_bootloader_esp_idf::esp_app_desc!();
+
+#[esp_rtos::main]
+async fn main(_spawner: emb::executor::Spawner) {
+    let (mut esp32_wifi_controller, _esp32_wifi_interfaces) = {
+        let p = esp::init(Default::default());
+        esp_alloc::heap_allocator!(size: 64 * 1024);
+        esp_println::logger::init_logger_from_env();
+        let timg0 = esp::timer::timg::TimerGroup::new(p.TIMG0);
+        let software_interrupt_control =
+            esp::interrupt::software::SoftwareInterruptControl::new(p.SW_INTERRUPT);
+        esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
+        //esp_rtos::start(timg0.timer0, p.FROM_CPU_INTR0);
+        esp_radio::wifi::new(p.WIFI, Default::default()).unwrap()
+    };
+    let scan_config = esp_radio::wifi::scan::ScanConfig::default().with_max_none();
+    let scanner = esp32_wifi_controller.scan_async(&scan_config).await.unwrap();
+    for access_point_info in scanner.iter() {
+        let ssid = access_point_info.ssid.as_str().trim_matches('\0');
+        if !ssid.is_empty() {
+            info!("Found SSID: {}", ssid);
+        }
+    }
+}
 {%- when "Wi-Fi HTTP Client" -%}
 #![no_std]
 #![no_main]

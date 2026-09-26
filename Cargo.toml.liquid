@@ -48,6 +48,9 @@ ssd1306 = { version = "0.10.0", features = ["async"] }
 embedded-graphics = { version = "0.8.2" }
 time = { version = "0.3.55", default-features = false } # no_std
 
+{% when "Wi-Fi Scan" -%}
+esp-radio = { version = "0.18.0", features = ["wifi", "unstable", "{{target}}"] }
+
 {% when "Wi-Fi HTTP Client" -%}
 esp-radio = { version = "0.18.0", features = ["wifi", "unstable", "{{target}}"] }
 embassy-net = { version = "0.9.1", features = [

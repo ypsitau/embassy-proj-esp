@@ -27,6 +27,7 @@ choices = [
     "UART Echo",
     "I2C SSD1306",
     "I2C SSD1306 + DS3231",
+    "Wi-Fi Scan",
     "Wi-Fi HTTP Client"
 ]
 default = "Blinky"
