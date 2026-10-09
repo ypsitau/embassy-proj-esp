@@ -388,19 +388,19 @@ async fn main(_spawner: emb::executor::Spawner) {
         let mutex_i2c0 = {
             {% case target -%}
             {%- when "esp32" -%}
-            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);
+            let (pin_sda, pin_scl) = (p.GPIO23, p.GPIO22);
             {%- when "esp32c2" -%}
-            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            let (pin_sda, pin_scl) = (p.GPIO23, p.GPIO22);  // not checked yet
             {%- when "esp32c3" -%}
-            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            let (pin_sda, pin_scl) = (p.GPIO23, p.GPIO22);  // not checked yet
             {%- when "esp32c5" -%}
-            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            let (pin_sda, pin_scl) = (p.GPIO23, p.GPIO22);  // not checked yet
             {%- when "esp32c6" -%}
-            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            let (pin_sda, pin_scl) = (p.GPIO23, p.GPIO22);  // not checked yet
             {%- when "esp32c61" -%}
-            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            let (pin_sda, pin_scl) = (p.GPIO23, p.GPIO22);  // not checked yet
             {%- when "esp32h2" -%}
-            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            let (pin_sda, pin_scl) = (p.GPIO23, p.GPIO22);  // not checked yet
             {%- when "esp32s2" -%}
             let (pin_sda, pin_scl) = (p.GPIO8, p.GPIO9);    // not checked yet
             {%- when "esp32s3" -%}
@@ -520,19 +520,19 @@ async fn main(_spawner: emb::executor::Spawner) {
         let mutex_i2c0 = {
             {% case target -%}
             {%- when "esp32" -%}
-            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);
+            let (pin_sda, pin_scl) = (p.GPIO23, p.GPIO22);
             {%- when "esp32c2" -%}
-            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            let (pin_sda, pin_scl) = (p.GPIO23, p.GPIO22);  // not checked yet
             {%- when "esp32c3" -%}
-            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            let (pin_sda, pin_scl) = (p.GPIO23, p.GPIO22);  // not checked yet
             {%- when "esp32c5" -%}
-            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            let (pin_sda, pin_scl) = (p.GPIO23, p.GPIO22);  // not checked yet
             {%- when "esp32c6" -%}
-            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            let (pin_sda, pin_scl) = (p.GPIO23, p.GPIO22);  // not checked yet
             {%- when "esp32c61" -%}
-            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            let (pin_sda, pin_scl) = (p.GPIO23, p.GPIO22);  // not checked yet
             {%- when "esp32h2" -%}
-            let (pin_sda, pin_scl) = (p.GPIO21, p.GPIO22);  // not checked yet
+            let (pin_sda, pin_scl) = (p.GPIO23, p.GPIO22);  // not checked yet
             {%- when "esp32s2" -%}
             let (pin_sda, pin_scl) = (p.GPIO8, p.GPIO9);    // not checked yet
             {%- when "esp32s3" -%}
