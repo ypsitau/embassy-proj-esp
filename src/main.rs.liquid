@@ -606,6 +606,22 @@ mod emb {
     pub use embassy_executor as executor;
 }
 
+#[esp_rtos::main]
+async fn main(_spawner: emb::executor::Spawner) {
+    let mut board = init_board();
+    let scan_config = esp_radio::wifi::scan::ScanConfig::default().with_max_none();
+    let scanner = board.esp32_wifi_controller.scan_async(&scan_config).await.unwrap();
+    for access_point_info in scanner.iter() {
+        let ssid = access_point_info.ssid.as_str().trim_matches('\0');
+        if !ssid.is_empty() {
+            info!("Found SSID: {}", ssid);
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+// board-specific implementation
+//-----------------------------------------------------------------------------
 use esp_alloc as _;
 use esp_backtrace as _;
 use esp_hal as esp;
@@ -613,9 +629,12 @@ use esp_println::println as info;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
-#[esp_rtos::main]
-async fn main(_spawner: emb::executor::Spawner) {
-    let (mut esp32_wifi_controller, _esp32_wifi_interfaces) = {
+struct Board {
+    esp32_wifi_controller: esp_radio::wifi::WifiController<'static>,
+}
+
+fn init_board() -> Board {
+    let (esp32_wifi_controller, _esp32_wifi_interfaces) = {
         let p = esp::init(Default::default());
         esp_alloc::heap_allocator!(size: 64 * 1024);
         esp_println::logger::init_logger_from_env();
@@ -626,14 +645,7 @@ async fn main(_spawner: emb::executor::Spawner) {
         //esp_rtos::start(timg0.timer0, p.FROM_CPU_INTR0);
         esp_radio::wifi::new(p.WIFI, Default::default()).unwrap()
     };
-    let scan_config = esp_radio::wifi::scan::ScanConfig::default().with_max_none();
-    let scanner = esp32_wifi_controller.scan_async(&scan_config).await.unwrap();
-    for access_point_info in scanner.iter() {
-        let ssid = access_point_info.ssid.as_str().trim_matches('\0');
-        if !ssid.is_empty() {
-            info!("Found SSID: {}", ssid);
-        }
-    }
+    Board { esp32_wifi_controller, }
 }
 {%- when "Wi-Fi HTTP Client" -%}
 #![no_std]
