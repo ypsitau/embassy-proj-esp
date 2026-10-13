@@ -647,6 +647,144 @@ fn init_board() -> Board {
     };
     Board { esp32_wifi_controller, }
 }
+{%- when "Wi-Fi TCP Server" -%}
+#![no_std]
+#![no_main]
+
+mod emb {
+    pub use embassy_executor as executor;
+    pub use embassy_futures as futures;
+    pub use embassy_net as net;
+}
+use embedded_hal_1 as hal;
+use embedded_io_async as io_async;
+use static_cell::StaticCell;
+use rand_core::TryRng;
+mod private_info;
+
+struct Board<NetDriver, OutputPin, Rng> {
+    net_driver: NetDriver,
+    esp32_wifi_controller: esp_radio::wifi::WifiController<'static>,
+    pin_led: OutputPin,
+    rng: Rng,
+}
+
+#[esp_rtos::main]
+async fn main(_spawner: emb::executor::Spawner) {
+    let mut board = init_board();
+    let (net_stack, mut net_runner) = {
+        const USE_DHCP: bool = true;
+        let config = if USE_DHCP {
+            emb::net::Config::dhcpv4(Default::default())
+        } else {
+            let address = emb::net::Ipv4Cidr::new(emb::net::Ipv4Address::new(192, 168, 0, 100), 24);
+            let mut dns_servers = heapless::Vec::<emb::net::Ipv4Address, 3>::new();
+            dns_servers.push(emb::net::Ipv4Address::new(192, 168, 0, 1)).unwrap();
+            let gateway = Some(emb::net::Ipv4Address::new(192, 168, 0, 1));
+            emb::net::Config::ipv4_static(emb::net::StaticConfigV4 {address, dns_servers, gateway})
+        };
+        let resources = {
+            static STATIC_CELL: StaticCell<emb::net::StackResources<3>> = StaticCell::new();
+            STATIC_CELL.init(emb::net::StackResources::new())
+        };
+        let random_seed = board.rng.try_next_u64().unwrap();
+        info!("Random seed: {:016x}", random_seed);
+        emb::net::new(board.net_driver, config, resources, random_seed)
+    };
+    let fut_net_runner = net_runner.run();
+    let fut_main = async {
+        while let Err(_) = board.esp32_wifi_controller.connect_async().await {
+            info!("Failed to connect to WiFi, retrying...");
+        }
+        info!("waiting for link...");
+        net_stack.wait_link_up().await;
+        info!("waiting for DHCP...");
+        net_stack.wait_config_up().await;
+        info!("Stack is up!");
+        run_tcp_server(net_stack, board.pin_led).await;
+    };
+    emb::futures::join::join(fut_main, fut_net_runner).await;
+}
+
+async fn run_tcp_server(net_stack: emb::net::Stack<'_>, mut pin_led: impl hal::digital::OutputPin) -> ! {
+    let rx_buf = {
+        const BUF_SIZE: usize = 4096;
+        static STATIC_CELL: StaticCell<[u8; BUF_SIZE]> = StaticCell::new();
+        STATIC_CELL.init([0u8; BUF_SIZE])
+    };
+    let tx_buf = {
+        const BUF_SIZE: usize = 4096;
+        static STATIC_CELL: StaticCell<[u8; BUF_SIZE]> = StaticCell::new();
+        STATIC_CELL.init([0u8; BUF_SIZE])
+    };
+    loop {
+        let mut socket = emb::net::tcp::TcpSocket::new(net_stack, rx_buf, tx_buf);
+        //socket.set_timeout(Some(emb::time::Duration::from_secs(10)));
+        pin_led.set_low().ok();
+        if let Some(config) = net_stack.config_v4() {
+            info!("Listening on {}:1234...", config.address.address());
+        }
+        if let Err(e) = socket.accept(1234).await {
+            warn!("accept error: {:?}", e);
+            continue;
+        }
+        if let Some(remote_endpoint) = socket.remote_endpoint() {
+            info!("Connected {:?}", remote_endpoint);
+            pin_led.set_high().ok();
+            task_echo(socket).await;
+        }
+    }
+}
+
+async fn task_echo(mut reader_writer: impl io_async::Read + io_async::Write) {
+    info!("Starting echo task");
+    let mut buf = [0u8; 16];
+    reader_writer.write_all(b"Enter any keystrokes:\r\n").await.ok();
+    reader_writer.flush().await.ok();
+    loop {
+        let buf_read = match reader_writer.read(&mut buf).await {
+            Ok(0) => { break; }
+            Ok(len) => { &buf[..len] }
+            Err(_) => { break; }
+        };
+        reader_writer.write_all(buf_read).await.ok();
+        reader_writer.flush().await.ok();
+    }
+    info!("Disconnected");
+}
+
+//-----------------------------------------------------------------------------
+// board-specific implementation
+//-----------------------------------------------------------------------------
+use esp_alloc as _;
+use esp_backtrace as _;
+use esp_hal as esp;
+use esp_println::println as info;
+use esp_println::println as warn;
+
+esp_bootloader_esp_idf::esp_app_desc!();
+
+fn init_board() -> Board<impl emb::net::driver::Driver, impl hal::digital::OutputPin, impl rand_core::TryRng> {
+    let p = esp::init(Default::default());
+    esp_alloc::heap_allocator!(size: 64 * 1024);
+    esp_println::logger::init_logger_from_env();
+    let timg0 = esp::timer::timg::TimerGroup::new(p.TIMG0);
+    let software_interrupt_control =
+        esp::interrupt::software::SoftwareInterruptControl::new(p.SW_INTERRUPT);
+    esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
+    let (esp32_wifi_controller, esp32_wifi_interfaces) = {
+        let (mut esp32_wifi_controller, esp32_wifi_interfaces) =
+            esp_radio::wifi::new(p.WIFI, Default::default()).unwrap();
+        let station_config = esp_radio::wifi::sta::StationConfig::default()
+            .with_ssid(private_info::WIFI_SSID).with_password(private_info::WIFI_PASSWORD.into());
+        esp32_wifi_controller.set_config(&esp_radio::wifi::Config::Station(station_config)).unwrap();
+        (esp32_wifi_controller, esp32_wifi_interfaces)
+    };
+    let pin_led = p.GPIO2;
+    let pin_led = esp::gpio::Output::new(pin_led, esp::gpio::Level::Low, esp::gpio::OutputConfig::default());
+    let rng = esp::rng::Rng::new();
+    Board { net_driver: esp32_wifi_interfaces.station, esp32_wifi_controller, pin_led, rng, }
+}
 {%- when "Wi-Fi HTTP Client" -%}
 #![no_std]
 #![no_main]
@@ -657,44 +795,22 @@ mod emb {
     pub use embassy_net as net;
     pub use embassy_time as time;
 }
-
+use embedded_hal_1 as hal;
+use embedded_hal_1::digital::OutputPin as _;
 use static_cell::StaticCell;
 use rand_core::TryRng;
-
-use esp_alloc as _;
-use esp_backtrace as _;
-use esp_hal as esp;
-use esp_println::println as info;
-use esp_println::println as error;
-
 mod private_info;
 
-esp_bootloader_esp_idf::esp_app_desc!();
+struct Board<NetDriver, OutputPin, Rng> {
+    net_driver: NetDriver,
+    esp32_wifi_controller: esp_radio::wifi::WifiController<'static>,
+    pin_led: OutputPin,
+    rng: Rng,
+}
 
 #[esp_rtos::main]
 async fn main(_spawner: emb::executor::Spawner) {
-    let (net_driver, mut esp32_wifi_controller, mut pin_led, mut rng) = {
-        let p = esp::init(Default::default());
-        esp_alloc::heap_allocator!(size: 64 * 1024);
-        esp_println::logger::init_logger_from_env();
-        let timg0 = esp::timer::timg::TimerGroup::new(p.TIMG0);
-        let software_interrupt_control =
-            esp::interrupt::software::SoftwareInterruptControl::new(p.SW_INTERRUPT);
-        esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
-        //esp_rtos::start(timg0.timer0, p.FROM_CPU_INTR0);
-        let (esp32_wifi_controller, esp32_wifi_interfaces) = {
-            let (mut esp32_wifi_controller, esp32_wifi_interfaces) =
-                esp_radio::wifi::new(p.WIFI, Default::default()).unwrap();
-            let station_config = esp_radio::wifi::sta::StationConfig::default()
-                .with_ssid(private_info::WIFI_SSID).with_password(private_info::WIFI_PASSWORD.into());
-            esp32_wifi_controller.set_config(&esp_radio::wifi::Config::Station(station_config)).unwrap();
-            (esp32_wifi_controller, esp32_wifi_interfaces)
-        };
-        let pin_led = p.GPIO2;
-        let pin_led = esp::gpio::Output::new(pin_led, esp::gpio::Level::Low, esp::gpio::OutputConfig::default());
-        let rng = esp::rng::Rng::new();
-        (esp32_wifi_interfaces.station, esp32_wifi_controller, pin_led, rng)
-    };
+    let mut board = init_board();
     let (net_stack, mut net_runner) = {
         const USE_DHCP: bool = true;
         let config = if USE_DHCP {
@@ -710,13 +826,13 @@ async fn main(_spawner: emb::executor::Spawner) {
             static STATIC_CELL: StaticCell<emb::net::StackResources<3>> = StaticCell::new();
             STATIC_CELL.init(emb::net::StackResources::<3>::new())
         };
-        let random_seed: u64 = rng.try_next_u64().unwrap();
+        let random_seed: u64 = board.rng.try_next_u64().unwrap();
         info!("Random seed: {:016x}", random_seed);
-        emb::net::new(net_driver, config, resources, random_seed)
+        emb::net::new(board.net_driver, config, resources, random_seed)
     };
     let fut_net_runner = net_runner.run();
     let fut_main = async {
-        while let Err(_) = esp32_wifi_controller.connect_async().await {
+        while let Err(_) = board.esp32_wifi_controller.connect_async().await {
             info!("Failed to connect to WiFi, retrying...");
         }
         info!("waiting for link...");
@@ -724,14 +840,14 @@ async fn main(_spawner: emb::executor::Spawner) {
         info!("waiting for DHCP...");
         net_stack.wait_config_up().await;
         info!("Stack is up!");
-        run_http_client(net_stack, rng).await;
+        run_http_client(net_stack, board.rng).await;
     };
     let fut_blinky = async {
         let mut ticker = emb::time::Ticker::every(emb::time::Duration::from_millis(300));
         loop {
-            pin_led.set_high();
+            board.pin_led.set_high().unwrap();
             ticker.next().await;
-            pin_led.set_low();
+            board.pin_led.set_low().unwrap();
             ticker.next().await;
         }
     };
@@ -830,5 +946,38 @@ async fn run_http_client(net_stack: emb::net::Stack<'_>, mut rng: impl TryRng) -
         }
         emb::time::Timer::after_secs(5).await;
     }
+}
+
+//-----------------------------------------------------------------------------
+// board-specific implementation
+//-----------------------------------------------------------------------------
+use esp_alloc as _;
+use esp_backtrace as _;
+use esp_hal as esp;
+use esp_println::println as info;
+use esp_println::println as error;
+
+esp_bootloader_esp_idf::esp_app_desc!();
+
+fn init_board() -> Board<impl emb::net::driver::Driver, impl hal::digital::OutputPin, impl rand_core::TryRng> {
+    let p = esp::init(Default::default());
+    esp_alloc::heap_allocator!(size: 64 * 1024);
+    esp_println::logger::init_logger_from_env();
+    let timg0 = esp::timer::timg::TimerGroup::new(p.TIMG0);
+    let software_interrupt_control =
+        esp::interrupt::software::SoftwareInterruptControl::new(p.SW_INTERRUPT);
+    esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
+    let (esp32_wifi_controller, esp32_wifi_interfaces) = {
+        let (mut esp32_wifi_controller, esp32_wifi_interfaces) =
+            esp_radio::wifi::new(p.WIFI, Default::default()).unwrap();
+        let station_config = esp_radio::wifi::sta::StationConfig::default()
+            .with_ssid(private_info::WIFI_SSID).with_password(private_info::WIFI_PASSWORD.into());
+        esp32_wifi_controller.set_config(&esp_radio::wifi::Config::Station(station_config)).unwrap();
+        (esp32_wifi_controller, esp32_wifi_interfaces)
+    };
+    let pin_led = p.GPIO2;
+    let pin_led = esp::gpio::Output::new(pin_led, esp::gpio::Level::Low, esp::gpio::OutputConfig::default());
+    let rng = esp::rng::Rng::new();
+    Board { net_driver: esp32_wifi_interfaces.station, esp32_wifi_controller, pin_led, rng, }
 }
 {%- endcase %}

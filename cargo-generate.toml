@@ -28,10 +28,11 @@ choices = [
     "I2C SSD1306",
     "I2C SSD1306 + DS3231",
     "Wi-Fi Scan",
+    "Wi-Fi TCP Server",
     "Wi-Fi HTTP Client"
 ]
 default = "Blinky"
 type = "string"
 
-[conditional.'template != "Wi-Fi HTTP Client"']
+[conditional.'!(template == "Wi-Fi TCP Server" || template == "Wi-Fi HTTP Client")']
 ignore = ["src/private_info.rs"]
