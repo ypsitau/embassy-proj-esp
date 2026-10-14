@@ -142,61 +142,64 @@ mod emb {
     pub use embassy_time as time;
 }
 use embedded_hal_1 as hal;
-
+use embedded_hal_1::pwm::SetDutyCycle as _; // for set_duty_cycle_fraction()
 use static_cell::StaticCell;
 
+struct Board<SetDutyCycle> {
+    pwm_led: SetDutyCycle,
+}
+
+#[esp_rtos::main]
+async fn main(_spawner: emb::executor::Spawner) {
+    let mut board = init_board();
+    info!("Starting task_dim_led");
+    let mut ticker = emb::time::Ticker::every(emb::time::Duration::from_millis(500));
+    loop {
+        board.pwm_led.set_duty_cycle_fraction(100, 100).ok();
+        ticker.next().await;
+        board.pwm_led.set_duty_cycle_fraction(66, 100).ok();
+        ticker.next().await;
+        board.pwm_led.set_duty_cycle_fraction(33, 100).ok();
+        ticker.next().await;
+        board.pwm_led.set_duty_cycle_fraction(0, 100).ok();
+        ticker.next().await;
+    }
+}
+
+//-----------------------------------------------------------------------------
+// board-specific implementation
+//-----------------------------------------------------------------------------
 use esp_backtrace as _;
 use esp_hal as esp;
 use esp_println::println as info;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
-#[esp_rtos::main]
-async fn main(_spawner: emb::executor::Spawner) {
-    let (pwm_led,) = {
-        let p = esp::init(Default::default());
-        let timg0 = esp::timer::timg::TimerGroup::new(p.TIMG0);
-        let software_interrupt_control = esp::interrupt::software::SoftwareInterruptControl::new(p.SW_INTERRUPT);
-        esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
-        //esp_rtos::start(timg0.timer0, p.FROM_CPU_INTR0);
-        let ledc = esp::ledc::Ledc::new(p.LEDC);
-        let ledc_timer0 = {
-            use esp::ledc::timer::TimerIFace as _;
-            static STATIC_CELL: StaticCell<esp::ledc::timer::Timer<'static, esp::ledc::HighSpeed>> = StaticCell::new();
-            let timer = STATIC_CELL.init(ledc.timer::<esp::ledc::HighSpeed>(esp::ledc::timer::Number::Timer0));
-            timer.configure(esp::ledc::timer::config::Config {
-                duty:           esp::ledc::timer::config::Duty::Duty8Bit,
-                clock_source:   esp::ledc::timer::HSClockSource::APBClk,
-                frequency:      esp::time::Rate::from_hz(1000)}).unwrap();
-            timer
-        };
-        let pwm_led = {
-            use esp::ledc::channel::ChannelIFace as _;
-            let mut pwm_led = ledc.channel(esp::ledc::channel::Number::Channel0, p.GPIO2);
-            pwm_led.configure(esp::ledc::channel::config::Config {
-                timer: ledc_timer0, duty_pct: 0, drive_mode: esp::gpio::DriveMode::PushPull}).unwrap();
-            pwm_led
-        };
-        (pwm_led,)
+fn init_board() -> Board<impl hal::pwm::SetDutyCycle> {
+    let p = esp::init(Default::default());
+    let timg0 = esp::timer::timg::TimerGroup::new(p.TIMG0);
+    let software_interrupt_control = esp::interrupt::software::SoftwareInterruptControl::new(p.SW_INTERRUPT);
+    esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
+    //esp_rtos::start(timg0.timer0, p.FROM_CPU_INTR0);
+    let ledc = esp::ledc::Ledc::new(p.LEDC);
+    let ledc_timer0 = {
+        use esp::ledc::timer::TimerIFace as _;
+        static STATIC_CELL: StaticCell<esp::ledc::timer::Timer<'static, esp::ledc::HighSpeed>> = StaticCell::new();
+        let timer = STATIC_CELL.init(ledc.timer::<esp::ledc::HighSpeed>(esp::ledc::timer::Number::Timer0));
+        timer.configure(esp::ledc::timer::config::Config {
+            duty:           esp::ledc::timer::config::Duty::Duty8Bit,
+            clock_source:   esp::ledc::timer::HSClockSource::APBClk,
+            frequency:      esp::time::Rate::from_hz(1000)}).unwrap();
+        timer
     };
-    let fut_task_dim_led = task_dim_led(pwm_led);
-    fut_task_dim_led.await;
-}
-
-async fn task_dim_led(mut pwm_led: impl hal::pwm::SetDutyCycle)
-{
-    info!("Starting task_dim_led");
-    let mut ticker = emb::time::Ticker::every(emb::time::Duration::from_millis(500));
-    loop {
-        pwm_led.set_duty_cycle_fraction(100, 100).ok();
-        ticker.next().await;
-        pwm_led.set_duty_cycle_fraction(66, 100).ok();
-        ticker.next().await;
-        pwm_led.set_duty_cycle_fraction(33, 100).ok();
-        ticker.next().await;
-        pwm_led.set_duty_cycle_fraction(0, 100).ok();
-        ticker.next().await;
-    }
+    let pwm_led = {
+        use esp::ledc::channel::ChannelIFace as _;
+        let mut pwm_led = ledc.channel(esp::ledc::channel::Number::Channel0, p.GPIO2);
+        pwm_led.configure(esp::ledc::channel::config::Config {
+            timer: ledc_timer0, duty_pct: 0, drive_mode: esp::gpio::DriveMode::PushPull}).unwrap();
+        pwm_led
+    };
+    Board { pwm_led }
 }
 {%- when "MCPWM (Motor Control PWM)" -%}
 //! MCPWM (Motor Control PWM) example using Embassy.
@@ -208,53 +211,58 @@ mod emb {
     pub use embassy_time as time;
 }
 use embedded_hal_1 as hal;
+use embedded_hal_1::pwm::SetDutyCycle as _; // for set_duty_cycle_fraction()
 
+struct Board<SetDutyCycle> {
+    pwm_led: SetDutyCycle,
+}
+
+#[esp_rtos::main]
+async fn main(_spawner: emb::executor::Spawner) {
+    let mut board = init_board();
+    info!("Starting task_dim_led");
+    let mut ticker = emb::time::Ticker::every(emb::time::Duration::from_millis(500));
+    loop {
+        board.pwm_led.set_duty_cycle_fraction(100, 100).ok();
+        ticker.next().await;
+        board.pwm_led.set_duty_cycle_fraction(66, 100).ok();
+        ticker.next().await;
+        board.pwm_led.set_duty_cycle_fraction(33, 100).ok();
+        ticker.next().await;
+        board.pwm_led.set_duty_cycle_fraction(0, 100).ok();
+        ticker.next().await;
+    }
+}
+
+//-----------------------------------------------------------------------------
+// board-specific implementation
+//-----------------------------------------------------------------------------
 use esp_backtrace as _;
 use esp_hal as esp;
 use esp_println::println as info;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
-#[esp_rtos::main]
-async fn main(_spawner: emb::executor::Spawner) {
-    let (pwm_led,) = {
-        let p = esp::init(Default::default());
-        let timg0 = esp::timer::timg::TimerGroup::new(p.TIMG0);
-        let software_interrupt_control = esp::interrupt::software::SoftwareInterruptControl::new(p.SW_INTERRUPT);
-        esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
-        //esp_rtos::start(timg0.timer0, p.FROM_CPU_INTR0);
-        let mcpwm0 = {
-            let clock_config = esp::mcpwm::PeripheralClockConfig::with_frequency(esp::time::Rate::from_mhz(160))
-                .unwrap();
-            let mut mcpwm0 = esp::mcpwm::McPwm::new(p.MCPWM0, clock_config);
-            let timer_config = clock_config.timer_clock_with_frequency(
-                999, esp::mcpwm::timer::PwmWorkingMode::Increase,
-                esp::time::Rate::from_hz(1000)).unwrap();
-            mcpwm0.timer0.start(timer_config);
-            mcpwm0.operator0.set_timer(&mcpwm0.timer0);
-            mcpwm0
-        };
-        let pwm_led = mcpwm0.operator0.with_pin_a(
-            p.GPIO2, esp::mcpwm::operator::PwmPinConfig::UP_ACTIVE_HIGH);
-        (pwm_led,)
+fn init_board() -> Board<impl hal::pwm::SetDutyCycle> {
+    let p = esp::init(Default::default());
+    let timg0 = esp::timer::timg::TimerGroup::new(p.TIMG0);
+    let software_interrupt_control = esp::interrupt::software::SoftwareInterruptControl::new(p.SW_INTERRUPT);
+    esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
+    //esp_rtos::start(timg0.timer0, p.FROM_CPU_INTR0);
+    let mcpwm0 = {
+        let clock_config = esp::mcpwm::PeripheralClockConfig::with_frequency(esp::time::Rate::from_mhz(160))
+            .unwrap();
+        let mut mcpwm0 = esp::mcpwm::McPwm::new(p.MCPWM0, clock_config);
+        let timer_config = clock_config.timer_clock_with_frequency(
+            999, esp::mcpwm::timer::PwmWorkingMode::Increase,
+            esp::time::Rate::from_hz(1000)).unwrap();
+        mcpwm0.timer0.start(timer_config);
+        mcpwm0.operator0.set_timer(&mcpwm0.timer0);
+        mcpwm0
     };
-    let fut_task_dim_led = task_dim_led(pwm_led);
-    fut_task_dim_led.await;
-}
-
-async fn task_dim_led(mut pwm_led: impl hal::pwm::SetDutyCycle) {
-    info!("Starting task_dim_led");
-    let mut ticker = emb::time::Ticker::every(emb::time::Duration::from_millis(500));
-    loop {
-        pwm_led.set_duty_cycle_fraction(100, 100).ok();
-        ticker.next().await;
-        pwm_led.set_duty_cycle_fraction(66, 100).ok();
-        ticker.next().await;
-        pwm_led.set_duty_cycle_fraction(33, 100).ok();
-        ticker.next().await;
-        pwm_led.set_duty_cycle_fraction(0, 100).ok();
-        ticker.next().await;
-    }
+    let pwm_led = mcpwm0.operator0.with_pin_a(
+        p.GPIO2, esp::mcpwm::operator::PwmPinConfig::UP_ACTIVE_HIGH);
+    Board { pwm_led }
 }
 {%- when "UART Echo" -%}
 //! UART Echo Example
@@ -265,76 +273,66 @@ mod emb {
     pub use embassy_executor as executor;
 }
 use embedded_io_async as io_async;
-
+use embedded_io_async::{Read as _, Write as _};
 use static_cell::StaticCell;
 
+struct Board<Uart> {
+    uart: Uart,
+}
+
+#[esp_rtos::main]
+async fn main(_spawner: emb::executor::Spawner) {
+    let mut board = init_board();
+    let buf = {
+        const BUFSIZE: usize = 16;
+        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
+        STATIC_CELL.init([0u8; BUFSIZE])
+    };
+    board.uart.write_all(b"Enter any keystrokes:\r\n").await.ok();
+    board.uart.flush().await.ok();
+    loop {
+        match board.uart.read(buf).await {
+            Ok(len) => {
+                board.uart.write_all(&buf[..len]).await.ok();
+                board.uart.flush().await.ok();
+            }
+            Err(_) => {
+                board.uart.write_all(b"error in reading\r\n").await.ok();
+                board.uart.flush().await.ok();
+            }
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+// board-specific implementation
+//-----------------------------------------------------------------------------
 use esp_backtrace as _;
 use esp_hal as esp;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
-#[esp_rtos::main]
-async fn main(_spawner: emb::executor::Spawner) {
-    let (uart_tx, uart_rx) = {
-        esp_println::logger::init_logger_from_env();
-        let p = esp::init(Default::default());
-        {% case target -%}
-        {%- when "esp32" -%}
-        let (pin_uart_tx, pin_uart_rx) = (p.GPIO1, p.GPIO3);
-        {%- when "esp32c2" -%}
-        let (pin_uart_tx, pin_uart_rx) = (p.GPIO20, p.GPIO19);
-        {%- when "esp32c3" -%}
-        let (pin_uart_tx, pin_uart_rx) = (p.GPIO21, p.GPIO20);
-        {%- when "esp32c5" -%}
-        let (pin_uart_tx, pin_uart_rx) = (p.GPIO11, p.GPIO12);
-        {%- when "esp32c6" -%}
-        let (pin_uart_tx, pin_uart_rx) = (p.GPIO16, p.GPIO17);
-        {%- when "esp32c61" -%}
-        let (pin_uart_tx, pin_uart_rx) = (p.GPIO11, p.GPIO10);
-        {%- when "esp32h2" -%}
-        let (pin_uart_tx, pin_uart_rx) = (p.GPIO24, p.GPIO23);
-        {%- when "esp32s2" -%}
-        let (pin_uart_tx, pin_uart_rx) = (p.GPIO43, p.GPIO44);
-        {%- when "esp32s3" -%}
-        let (pin_uart_tx, pin_uart_rx) = (p.GPIO43, p.GPIO44);
-        {%- endcase %}
-        let timg0 = esp::timer::timg::TimerGroup::new(p.TIMG0);
-        let software_interrupt_control = esp::interrupt::software::SoftwareInterruptControl::new(p.SW_INTERRUPT);
-        esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
-        //esp_rtos::start(timg0.timer0, p.FROM_CPU_INTR0);
-        let uart = {
-            const FIFO_FULL_THRESHOLD: u16 = 64;
-            let config = esp::uart::Config::default()
-                .with_rx(esp::uart::RxConfig::default()
-                .with_fifo_full_threshold(FIFO_FULL_THRESHOLD));
-            esp::uart::Uart::new(p.UART0, config).unwrap().with_tx(pin_uart_tx).with_rx(pin_uart_rx).into_async()
-        };
-        let (uart_rx, uart_tx) = uart.split(); // note that the order is rx first, then tx.
-        (uart_tx, uart_rx)
+fn init_board() -> Board<impl io_async::Read + io_async::Write> {
+    esp_println::logger::init_logger_from_env();
+    let p = esp::init(Default::default());
+    {% case target_esp -%}
+    {% when "esp32" -%}
+    let (pin_uart_tx, pin_uart_rx) = (p.GPIO1, p.GPIO3);
+    {% when "esp32s3" -%}
+    let (pin_uart_tx, pin_uart_rx) = (p.GPIO43, p.GPIO44);
+    {% endcase -%}
+    let timg0 = esp::timer::timg::TimerGroup::new(p.TIMG0);
+    let software_interrupt_control = esp::interrupt::software::SoftwareInterruptControl::new(p.SW_INTERRUPT);
+    esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
+    //esp_rtos::start(timg0.timer0, p.FROM_CPU_INTR0);
+    let uart = {
+        const FIFO_FULL_THRESHOLD: u16 = 64;
+        let config = esp::uart::Config::default()
+            .with_rx(esp::uart::RxConfig::default()
+            .with_fifo_full_threshold(FIFO_FULL_THRESHOLD));
+        esp::uart::Uart::new(p.UART0, config).unwrap().with_tx(pin_uart_tx).with_rx(pin_uart_rx).into_async()
     };
-    task_echo(uart_tx, uart_rx).await;
-}
-
-async fn task_echo(mut writer: impl io_async::Write, mut reader: impl io_async::Read) {
-    const BUFSIZE: usize = 16;
-    let buf = {
-        static STATIC_CELL: StaticCell<[u8; BUFSIZE]> = StaticCell::new();
-        STATIC_CELL.init([0u8; BUFSIZE])
-    };
-    writer.write_all(b"Enter any keystrokes:\r\n").await.ok();
-    writer.flush().await.ok();
-    loop {
-        match reader.read(buf).await {
-            Ok(len) => {
-                writer.write_all(&buf[..len]).await.ok();
-                writer.flush().await.ok();
-            }
-            Err(_) => {
-                writer.write_all(b"error in reading\r\n").await.ok();
-                writer.flush().await.ok();
-            }
-        }
-    }
+    Board { uart }
 }
 {%- when "I2C SSD1306" -%}
 //! I2C SSD1306 example using Embassy and async/await.
