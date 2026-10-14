@@ -315,7 +315,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
 fn init_board() -> Board<impl io_async::Read + io_async::Write> {
     esp_println::logger::init_logger_from_env();
     let p = esp::init(Default::default());
-    {% case target_esp -%}
+    {% case target -%}
     {% when "esp32" -%}
     let (pin_uart_tx, pin_uart_rx) = (p.GPIO1, p.GPIO3);
     {% when "esp32s3" -%}
