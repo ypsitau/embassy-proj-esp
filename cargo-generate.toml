@@ -28,12 +28,16 @@ choices = [
     "I2C SSD1306",
     "I2C SSD1306 + DS3231",
     "SPI ST7789",
+    "SPI ILI9341",
     "Wi-Fi Scan",
     "Wi-Fi TCP Server",
     "Wi-Fi HTTP Client"
 ]
 default = "Blinky"
 type = "string"
+
+[conditional.'!(template == "SPI ILI9341")']
+ignore = ["src/xpt2046.rs"]
 
 [conditional.'!(template == "Wi-Fi TCP Server" || template == "Wi-Fi HTTP Client")']
 ignore = ["src/private_info.rs"]
