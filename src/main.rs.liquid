@@ -674,15 +674,15 @@ pub fn init_board()
         esp::interrupt::software::SoftwareInterruptControl::new(p.SW_INTERRUPT);
     esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
     let (
-        (pin_spi2_clk, pin_spi2_mosi, pin_spi2_miso),
+        (pin_spi2_clk, pin_spi2_mosi),
         (pin_display_reset, pin_display_dc, pin_display_cs, pin_display_bl)
     ) = (
         {% case target -%}
         {% when "esp32" -%}
-        (p.GPIO5, p.GPIO18, p.GPIO19),
+        (p.GPIO5, p.GPIO18),
         (p.GPIO26, p.GPIO25, p.GPIO33, p.GPIO32)
         {% when "esp32s3" -%}
-        (p.GPIO39, p.GPIO40, p.GPIO41),
+        (p.GPIO39, p.GPIO40),
         (p.GPIO7, p.GPIO6, p.GPIO5, p.GPIO4)
         {%- endcase %}
     );
@@ -691,7 +691,7 @@ pub fn init_board()
         static STATIC_CELL: StaticCell<BlockingMutexNoop<RefCell<Spi>>> = StaticCell::new();
         STATIC_CELL.init(BlockingMutexNoop::new(RefCell::new(
             Spi::new(p.SPI2, esp::spi::master::Config::default())
-                .unwrap().with_sck(pin_spi2_clk).with_mosi(pin_spi2_mosi).with_miso(pin_spi2_miso))))
+                .unwrap().with_sck(pin_spi2_clk).with_mosi(pin_spi2_mosi))))
     };
     let pin_display_reset = esp::gpio::Output::new(
         pin_display_reset, esp::gpio::Level::Low, esp::gpio::OutputConfig::default());
