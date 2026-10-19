@@ -803,7 +803,22 @@ pub fn init_board()
     let software_interrupt_control =
         esp::interrupt::software::SoftwareInterruptControl::new(p.SW_INTERRUPT);
     esp_rtos::start(timg0.timer0, software_interrupt_control.software_interrupt0);
-    let (pin_spi2_clk, pin_spi2_mosi, pin_spi2_miso) = (p.GPIO5, p.GPIO18, p.GPIO19);
+    let (
+        (pin_spi2_clk, pin_spi2_mosi, pin_spi2_miso),
+        (pin_touch_cs, pin_touch_irq),
+        (pin_display_reset, pin_display_dc, pin_display_cs, pin_display_bl)
+    ) = (
+        {% case target -%}
+        {% when "esp32" -%}
+        (p.GPIO5, p.GPIO18, p.GPIO19),
+        (p.GPIO14, p.GPIO27),
+        (p.GPIO26, p.GPIO25, p.GPIO33, p.GPIO32)
+        {% when "esp32s3" -%}
+        (p.GPIO39, p.GPIO40, p.GPIO41),
+        (p.GPIO16, p.GPIO15),
+        (p.GPIO7, p.GPIO6, p.GPIO5, p.GPIO4)
+        {%- endcase %}
+    );
     let mutex_spi2 = {
         type Spi = esp::spi::master::Spi<'static, esp::Blocking>;
         static STATIC_CELL: StaticCell<BlockingMutexNoop<RefCell<Spi>>> = StaticCell::new();
@@ -812,21 +827,21 @@ pub fn init_board()
                 .unwrap().with_sck(pin_spi2_clk).with_mosi(pin_spi2_mosi).with_miso(pin_spi2_miso))))
     };
     let pin_touch_cs = esp::gpio::Output::new(
-        p.GPIO14, esp::gpio::Level::High, esp::gpio::OutputConfig::default());
+        pin_touch_cs, esp::gpio::Level::High, esp::gpio::OutputConfig::default());
     let _pin_touch_irq = esp::gpio::Input::new(
-        p.GPIO27, esp::gpio::InputConfig::default());
+        pin_touch_irq, esp::gpio::InputConfig::default());
     let pin_display_reset = esp::gpio::Output::new(
-        p.GPIO26, esp::gpio::Level::Low, esp::gpio::OutputConfig::default());
+        pin_display_reset, esp::gpio::Level::Low, esp::gpio::OutputConfig::default());
     let pin_display_dc = esp::gpio::Output::new(
-        p.GPIO25, esp::gpio::Level::Low, esp::gpio::OutputConfig::default());
+        pin_display_dc, esp::gpio::Level::Low, esp::gpio::OutputConfig::default());
     let pin_display_cs = esp::gpio::Output::new(
-        p.GPIO33, esp::gpio::Level::High, esp::gpio::OutputConfig::default());
+        pin_display_cs, esp::gpio::Level::High, esp::gpio::OutputConfig::default());
     let pin_display_bl = esp::gpio::Output::new(
-        p.GPIO32, esp::gpio::Level::High, esp::gpio::OutputConfig::default());
+        pin_display_bl, esp::gpio::Level::High, esp::gpio::OutputConfig::default());
     let display_interface = {
         let spi_dev = {
             let config = esp::spi::master::Config::default()
-                .with_frequency(esp::time::Rate::from_mhz(40)).with_mode(esp::spi::Mode::_3);
+                .with_frequency(esp::time::Rate::from_mhz(40)).with_mode(esp::spi::Mode::_0);
             emb::hal::shared_bus::blocking::spi::SpiDeviceWithConfig::new(mutex_spi2, pin_display_cs, config)
         };
         let spi_buf = {
@@ -838,7 +853,7 @@ pub fn init_board()
     };
     let spi_dev_touch = {
         let config = esp::spi::master::Config::default()
-            .with_frequency(esp::time::Rate::from_khz(200)).with_mode(esp::spi::Mode::_3);
+            .with_frequency(esp::time::Rate::from_khz(200)).with_mode(esp::spi::Mode::_0);
         emb::hal::shared_bus::blocking::spi::SpiDeviceWithConfig::new(mutex_spi2, pin_touch_cs, config)
     };
     Board { display_interface, pin_display_reset, pin_display_bl, spi_dev_touch }
