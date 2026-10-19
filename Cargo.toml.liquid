@@ -50,6 +50,10 @@ ssd1306 = { version = "0.10.0", features = ["async"] }
 embedded-graphics = { version = "0.8.2" }
 time = { version = "0.3.55", default-features = false } # no_std
 
+{% when "SPI ST7789" -%}
+mipidsi = { version = "0.10.0" }
+embedded-graphics = { version = "0.8.2" }
+
 {% when "Wi-Fi Scan" -%}
 esp-radio = { version = "0.18.0", features = ["wifi", "unstable", "{{target}}"] }
 

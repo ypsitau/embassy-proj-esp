@@ -27,6 +27,7 @@ choices = [
     "UART Echo",
     "I2C SSD1306",
     "I2C SSD1306 + DS3231",
+    "SPI ST7789",
     "Wi-Fi Scan",
     "Wi-Fi TCP Server",
     "Wi-Fi HTTP Client"
