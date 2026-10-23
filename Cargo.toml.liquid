@@ -44,7 +44,7 @@ esp-rtos = { version = "0.3.0", features = [
 {% when "MCPWM (Motor Control PWM)" -%}
 {% when "Flash Memory" -%}
 embedded-storage = { version = "0.3.1" }
-esp-storage = { version = "0.9.0", features = ["esp32"] }
+esp-storage = { version = "0.9.0", features = ["{{target}}"] }
 
 {% when "UART Echo" -%}
 {% when "I2C SSD1306" -%}
