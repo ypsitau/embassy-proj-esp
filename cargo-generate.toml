@@ -24,6 +24,7 @@ choices = [
     "GPIO In/Out",
     "LEDC (PWM)",
     "MCPWM (Motor Control PWM)",
+    "Flash Memory",
     "UART Echo",
     "I2C SSD1306",
     "I2C SSD1306 + DS3231",
