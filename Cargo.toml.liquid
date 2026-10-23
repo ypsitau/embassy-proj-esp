@@ -47,14 +47,9 @@ embedded-storage = { version = "0.3.1" }
 esp-storage = { version = "0.9.0", features = ["{{target}}"] }
 
 {% when "UART Echo" -%}
-{% when "I2C SSD1306" -%}
+{% when "I2C SSD1306" or "I2C SSD1306 + DS3231" -%}
 ssd1306 = { version = "0.10.0", features = ["async"] }
 embedded-graphics = { version = "0.8.2" }
-
-{% when "I2C SSD1306 + DS3231" -%}
-ssd1306 = { version = "0.10.0", features = ["async"] }
-embedded-graphics = { version = "0.8.2" }
-time = { version = "0.3.55", default-features = false } # no_std
 
 {% when "SPI ST7789" or "SPI ILI9341"-%}
 mipidsi = { version = "0.10.0" }
